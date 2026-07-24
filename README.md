@@ -1,0 +1,104 @@
+# alakazam-gym
+
+Train policies inside **Alakazam world models** — Gymnasium-compatible.
+
+Three surfaces, one package:
+
+| Class | What it is | Cost |
+|---|---|---|
+| `LocalDreamEnv` | The public [DOOM Dungeon HG](https://huggingface.co/alakazamworld/doom-dungeon-hg) world model, running **locally** via onnxruntime | free |
+| `RemoteSimEnv` | The hosted simulation gym (`/v1/sim/sessions`, SNN observation contract) | metered (GPU stream per session) |
+| `ExamClient` | Certification in the **frozen Webots oracle** via the Forge API | scheduled |
+
+## Install
+
+```bash
+pip install -e .
+```
+
+First `LocalDreamEnv()` call downloads the public weights (~280 MB) into
+`~/.cache/alakazam-gym/` and sha256-verifies them against the published pins.
+Already have them? `export ALAKAZAM_GYM_WEIGHTS_DIR=/path/to/weights`.
+
+## 10-line random agent
+
+```python
+import alakazam_gym, gymnasium as gym
+
+env = gym.make("Alakazam/DoomDream-v0")
+obs, info = env.reset(seed=7)
+for t in range(100):
+    obs, r, term, trunc, info = env.step(env.action_space.sample())
+    if obs["sensor_valid"]:
+        print(t, "prox", obs["proximity"].round(2), "collision", obs["collision"])
+env.close()
+```
+
+Each `step` is one world-model inference (~0.1–0.3 s on a laptop CPU;
+the same graph runs under onnxruntime-web WebGPU in the browser clients).
+
+## What the observation means
+
+- `frame` — the model's rendered view, float32 `(3, 64, 64)` in `[-1, 1]`.
+- `proximity` — calibrated virtual range readout `(left, right)` in `[0, 1]`
+  from the geometry the world model is conditioned on (0 = clear,
+  1 = contact range ≈ 30 cm at robot scale).
+- `collision` — 1 when a forward move was blocked by a wall this step.
+- `sensor_valid` — **0 during the first steps after reset. Never sense or
+  score steps with `sensor_valid == 0`** (post-reset blindness; the
+  certification exam applies the same rule). See `docs/HONEST_EVAL.md`.
+
+Reward is always `0.0` — shaping is yours.
+
+## SNN sketch
+
+```python
+from alakazam_gym import LocalDreamEnv
+
+env = LocalDreamEnv(seed=7)
+obs, _ = env.reset()
+while True:
+    # encode: bounded scalars -> input spike rates
+    rates = obs["proximity"]            # [left, right] in 0..1
+    pain  = obs["collision"]            # punishment spike
+    # your spiking network here: integrate for one tick, decode motor pops
+    action = my_snn.tick(rates, pain)   # -> 0..4 (noop/fwd/left/right/attack)
+    obs, _, _, _, _ = env.step(action)
+```
+
+Training against the hosted worlds instead (e-puck/robot, wheels commands,
+camera): `RemoteSimEnv(base_url, key, world="epuck")` — same loop, metered
+sessions, **always `env.close()`**.
+
+## Certify — the exam is the scoreboard
+
+Dream/gym numbers are training telemetry, never capability claims. When your
+controller is worth a claim, certify it in the frozen Webots oracle:
+
+```python
+from alakazam_gym import ExamClient
+c = ExamClient("http://localhost:8790", key=FORGE_KEY)   # via IAP tunnel
+job = c.submit_exam_only("my-cert-001", genome6=[...])    # or genome9=[...]
+result = c.wait(job["job_id"])
+print(result["oracle"]["verdict"])                        # 4-bar verdict, honest
+```
+
+Today the exam accepts the 9-float controller family; SNN-native submission
+is a planned extension. Full API reference: the **Forge** tab of the
+Alakazam docs.
+
+## Licensing
+
+- Code in this repo: **MIT** (`LICENSE`).
+- Model weights (`alakazamworld/doom-dungeon-hg`): **CC BY-NC-SA** — the
+  downloader does not change that. Commercial use of the weights needs a
+  separate arrangement.
+
+## Provenance
+
+`LocalDreamEnv` ports the reference environment `doom_env_v55.py`
+(dream-robot release; also published at
+`huggingface.co/Karajan42/dream-robot-gauntlet-policies`) onto the
+Gymnasium API, unchanged in its model contract (7-input ONNX, 1-step EDM
+sampler, `sigma_cond=0.5`, `noise_aug_bucket=5`, 12-channel conditioning
+minimap — see the weights repo's `HOSTING.md`).
