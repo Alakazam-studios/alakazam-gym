@@ -6,7 +6,7 @@ genome6 it expands from). ONNX policy submission is a planned extension.
 
 Usage:
     from alakazam_gym import ExamClient
-    c = ExamClient("http://localhost:8790", key=os.environ["FORGE_KEY"])
+    c = ExamClient("http://localhost:8790", key=os.environ["TRAIN_KEY"])
     job = c.submit_exam_only("my-cert-001", genome6=[...])   # returns spawn info
     result = c.wait(job["job_id"])                            # poll to done
     print(result["oracle"]["verdict"])
