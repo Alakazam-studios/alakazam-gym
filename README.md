@@ -9,7 +9,7 @@ Three surfaces, one package:
 |---|---|---|
 | `LocalDreamEnv` | The public [DOOM Dungeon HG](https://huggingface.co/alakazamworld/doom-dungeon-hg) world model, running locally via onnxruntime | free |
 | `RemoteSimEnv` | The hosted simulation gym (`/v1/sim/sessions`, SNN observation contract) | metered (GPU stream per session) |
-| `ExamClient` | Certification in the frozen Webots oracle via the Train API | scheduled |
+| `ExamClient` | Certification in the frozen Webots oracle via the Train API | wakes on request |
 
 ## Install
 

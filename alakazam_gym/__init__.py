@@ -15,7 +15,7 @@ LocalDreamEnv) and import lazily so cert-only use works without them.
 from .exam import ExamClient, ExamError, PolicyBundle
 from .weights import ensure_weights
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 __all__ = ["LocalDreamEnv", "RemoteSimEnv", "ExamClient", "ExamError",
            "PolicyBundle", "ensure_weights", "ACTION_NAMES"]
 

@@ -1,8 +1,10 @@
-"""ExamClient — certify a policy in the frozen Webots oracle via the Forge API.
+"""ExamClient: certify a policy in the frozen Webots oracle via the Train API.
 
 The exam is the sole scoreboard: dream/gym scores are training telemetry.
-Today the exam accepts the 9-float controller family (genome9, or the compact
-genome6 it expands from). ONNX policy submission is a planned extension.
+The exam accepts the 9-float controller family (genome9, or the compact
+genome6 it expands from) or your own policy as a sandboxed python module
+(see PolicyBundle). The serving box wakes on request; the client rides out
+the boot window automatically.
 
 Usage:
     from alakazam_gym import ExamClient
@@ -31,7 +33,7 @@ class PolicyBundle:
     """Package a policy for the python_module exam slot: a single `.py` file or
     a directory (zipped). The policy module must define a class (default
     `Policy`) with `reset(seed)` and `act(obs)`, where obs is the same dict the
-    local gym emits and the action is the wheel-fraction vocabulary — so a
+    local gym emits and the action is the wheel-fraction vocabulary, so a
     policy you trained in LocalDreamEnv certifies unchanged."""
 
     def __init__(self, path: str, entry: str = "policy", class_name: str = "Policy"):
@@ -66,29 +68,41 @@ class ExamClient:
         self.key = key
         self.timeout_s = timeout_s
 
-    def _req(self, method: str, path: str, body=None):
-        r = urllib.request.Request(self.base + path, method=method)
-        r.add_header("Authorization", f"Bearer {self.key}")
-        data = None
-        if body is not None:
-            data = json.dumps(body).encode()
-            r.add_header("Content-Type", "application/json")
-        try:
-            with urllib.request.urlopen(r, data, timeout=self.timeout_s) as resp:
-                return json.loads(resp.read())
-        except urllib.error.HTTPError as e:
+    def _req(self, method: str, path: str, body=None, wake_wait_s: float = 720.0):
+        """One API call. If the serving box is asleep, the first request wakes
+        it and the API answers 503 {"status": "waking", ...} while it boots
+        (about 4-8 min, physics acceptance gate). We retry through that window
+        by default; set wake_wait_s=0 to fail fast instead."""
+        deadline = time.time() + wake_wait_s
+        while True:
+            r = urllib.request.Request(self.base + path, method=method)
+            r.add_header("Authorization", f"Bearer {self.key}")
+            data = None
+            if body is not None:
+                data = json.dumps(body).encode()
+                r.add_header("Content-Type", "application/json")
             try:
-                detail = json.loads(e.read()).get("detail", "")
-            except Exception:
-                detail = ""
-            raise ExamError(f"{method} {path} -> {e.code}: {detail}") from e
+                with urllib.request.urlopen(r, data, timeout=self.timeout_s) as resp:
+                    return json.loads(resp.read())
+            except urllib.error.HTTPError as e:
+                raw = e.read()
+                try:
+                    payload = json.loads(raw)
+                except Exception:
+                    payload = {}
+                if e.code == 503 and payload.get("status") == "waking" and time.time() < deadline:
+                    print(f"[exam] box is waking ({payload.get('phase', '?')}), retrying...")
+                    time.sleep(float(payload.get("retry_after_s", 30)))
+                    continue
+                detail = payload.get("detail", "") or payload.get("message", "")
+                raise ExamError(f"{method} {path} -> {e.code}: {detail}") from e
 
     # -- jobs ---------------------------------------------------------------
     def submit_exam_only(self, job_id: str, genome6=None, genome9=None,
                          episodes: int = 20, note: str | None = None):
         """Exam-only certification (no training): gens=0 + your genome.
         Provide genome6 (6 floats) or genome9 (9 floats in the controller
-        family layout [a,b,b,a,bias,bias,gt,gg,gth] — reduced to genome6)."""
+        family layout [a,b,b,a,bias,bias,gt,gg,gth], reduced to genome6)."""
         if genome9 is not None and genome6 is None:
             g = list(map(float, genome9))
             if len(g) != 9:
@@ -96,7 +110,7 @@ class ExamClient:
             if g[3] != g[0] or g[2] != g[1] or g[5] != g[4]:
                 raise ValueError(
                     "genome9 outside the controller family layout "
-                    "[a,b,b,a,bias,bias,gt,gg,gth] — cannot reduce to genome6")
+                    "[a,b,b,a,bias,bias,gt,gg,gth], cannot reduce to genome6")
             genome6 = [g[0], g[1], g[4], g[6], g[7], g[8]]
         if genome6 is None:
             raise ValueError("provide genome6 or genome9")
@@ -113,7 +127,7 @@ class ExamClient:
                       episodes: int = 20):
         """Certify YOUR OWN policy (a sandboxed python module) in the frozen
         exam. `bundle` is a PolicyBundle over your policy .py or directory.
-        This is the path for architectures outside the 9-float family — your
+        This is the path for architectures outside the 9-float family: your
         SNN, a reactive controller, anything implementing reset/act."""
         spec = {"job_id": job_id,
                 "train": {"pop": 0, "gens": 0, "T": 0, "seed": 0},
@@ -124,7 +138,7 @@ class ExamClient:
     def submit_training(self, job_id: str, pop: int, gens: int, T: int,
                         seed: int, parent: dict | None = None,
                         episodes: int = 20):
-        """Server-side dream training + exam (see the Forge API reference)."""
+        """Server-side dream training + exam (see the Train API reference)."""
         train = {"pop": pop, "gens": gens, "T": T, "seed": seed}
         if parent is not None:
             train["parent"] = parent
