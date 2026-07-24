@@ -78,7 +78,7 @@ controller is worth a claim, certify it in the frozen Webots oracle:
 
 ```python
 from alakazam_gym import ExamClient
-c = ExamClient("http://localhost:8790", key=TRAIN_KEY)   # via IAP tunnel
+c = ExamClient("https://api.alakazam.gg/train", key=TRAIN_KEY)  
 job = c.submit_exam_only("my-cert-001", genome6=[...])    # or genome9=[...]
 result = c.wait(job["job_id"])
 print(result["oracle"]["verdict"])                        # 4-bar verdict, honest
@@ -106,7 +106,7 @@ class Policy:
 
 ```python
 from alakazam_gym import ExamClient, PolicyBundle
-c = ExamClient("http://localhost:8790", key=TRAIN_KEY)
+c = ExamClient("https://api.alakazam.gg/train", key=TRAIN_KEY)
 bundle = PolicyBundle("my_policy.py")          # or a directory -> zipped
 job = c.submit_policy("my-cert-001", bundle)
 print(c.wait(job["job_id"])["oracle"]["verdict"])
