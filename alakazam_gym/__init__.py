@@ -12,12 +12,12 @@ scoreboard.
 ExamClient is stdlib-only; the envs require gymnasium (+ onnxruntime for
 LocalDreamEnv) and import lazily so cert-only use works without them.
 """
-from .exam import ExamClient, ExamError
+from .exam import ExamClient, ExamError, PolicyBundle
 from .weights import ensure_weights
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = ["LocalDreamEnv", "RemoteSimEnv", "ExamClient", "ExamError",
-           "ensure_weights", "ACTION_NAMES"]
+           "PolicyBundle", "ensure_weights", "ACTION_NAMES"]
 
 _LAZY = {"LocalDreamEnv": ".dream_env", "ACTION_NAMES": ".dream_env",
          "RemoteSimEnv": ".remote_sim"}

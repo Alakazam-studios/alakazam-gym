@@ -13,14 +13,51 @@ Usage:
 """
 from __future__ import annotations
 
+import base64
+import io
 import json
+import os
 import time
 import urllib.error
 import urllib.request
+import zipfile
 
 
 class ExamError(RuntimeError):
     pass
+
+
+class PolicyBundle:
+    """Package a policy for the python_module exam slot: a single `.py` file or
+    a directory (zipped). The policy module must define a class (default
+    `Policy`) with `reset(seed)` and `act(obs)`, where obs is the same dict the
+    local gym emits and the action is the wheel-fraction vocabulary — so a
+    policy you trained in LocalDreamEnv certifies unchanged."""
+
+    def __init__(self, path: str, entry: str = "policy", class_name: str = "Policy"):
+        self.path = path
+        self.entry = entry
+        self.class_name = class_name
+
+    def module_b64(self) -> str:
+        if os.path.isdir(self.path):
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+                for root, _dirs, files in os.walk(self.path):
+                    for fn in files:
+                        if fn.endswith((".pyc",)) or "__pycache__" in root:
+                            continue
+                        full = os.path.join(root, fn)
+                        z.write(full, os.path.relpath(full, self.path))
+            raw = buf.getvalue()
+        else:
+            with open(self.path, "rb") as f:
+                raw = f.read()
+        return base64.b64encode(raw).decode()
+
+    def spec_field(self) -> dict:
+        return {"format": "python_module", "module_b64": self.module_b64(),
+                "entry": self.entry, "class": self.class_name}
 
 
 class ExamClient:
@@ -70,6 +107,18 @@ class ExamClient:
                 "train": {"pop": 0, "gens": 0, "T": 0, "seed": 0,
                           "parent": parent},
                 "exam": {"episodes": int(episodes)}}
+        return self._req("POST", "/jobs", spec)
+
+    def submit_policy(self, job_id: str, bundle: "PolicyBundle",
+                      episodes: int = 20):
+        """Certify YOUR OWN policy (a sandboxed python module) in the frozen
+        exam. `bundle` is a PolicyBundle over your policy .py or directory.
+        This is the path for architectures outside the 9-float family — your
+        SNN, a reactive controller, anything implementing reset/act."""
+        spec = {"job_id": job_id,
+                "train": {"pop": 0, "gens": 0, "T": 0, "seed": 0},
+                "exam": {"episodes": int(episodes)},
+                "policy": bundle.spec_field()}
         return self._req("POST", "/jobs", spec)
 
     def submit_training(self, job_id: str, pop: int, gens: int, T: int,

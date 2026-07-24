@@ -83,9 +83,43 @@ result = c.wait(job["job_id"])
 print(result["oracle"]["verdict"])                        # 4-bar verdict, honest
 ```
 
-Today the exam accepts the 9-float controller family; SNN-native submission
-is a planned extension. Full API reference: the **Forge** tab of the
-Alakazam docs.
+## Certify YOUR OWN policy
+
+You are not limited to the 9-float controller family. Package any policy that
+implements the `reset(seed)` + `act(obs)` contract and submit it as a sandboxed
+python module. The `obs` your policy sees in the exam is the SAME dict the local
+gym emits (`proximity`, `collision`, `sensor_valid`), and the action is the same
+wheel-fraction vocabulary — so a policy you trained in `LocalDreamEnv` certifies
+unchanged.
+
+```python
+# my_policy.py
+class Policy:
+    def reset(self, seed):
+        self.net = load_my_snn_weights()      # numpy inference over exported weights
+    def act(self, obs):
+        L = obs["proximity"]["left"]; R = obs["proximity"]["right"]
+        wl, wr = self.net.step(L, R, spike=obs["collision"])
+        return {"wheels": {"left": wl, "right": wr}}   # each in [0,1]
+```
+
+```python
+from alakazam_gym import ExamClient, PolicyBundle
+c = ExamClient("http://localhost:8790", key=FORGE_KEY)
+bundle = PolicyBundle("my_policy.py")          # or a directory -> zipped
+job = c.submit_policy("my-cert-001", bundle)
+print(c.wait(job["job_id"])["oracle"]["verdict"])
+```
+
+Sandbox: the module runs inside the exam container with **no network egress**
+and resource/time limits (trusted-partner posture, key-gated). The container
+ships numpy + onnxruntime; a policy needing torch/norse will not import — export
+your weights and run a numpy forward pass. There is deliberately no ONNX detour:
+ship a python module, not a converted graph. The policy replaces ONLY the
+champion arm; the world, spawns, episode count, tick, proximity remap, scoring
+and the anti-exploit control arms stay frozen.
+
+Full API reference: the **Forge** tab of the Alakazam docs.
 
 ## Licensing
 
