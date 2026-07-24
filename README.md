@@ -30,7 +30,7 @@ obs, info = env.reset(seed=7)
 for t in range(100):
     obs, r, term, trunc, info = env.step(env.action_space.sample())
     if obs["sensor_valid"]:
-        print(t, "prox", obs["proximity"].round(2), "collision", obs["collision"])
+        print(t, "prox", obs["proximity"], "collision", obs["collision"])
 env.close()
 ```
 
@@ -40,7 +40,8 @@ the same graph runs under onnxruntime-web WebGPU in the browser clients).
 ## What the observation means
 
 - `frame` — the model's rendered view, float32 `(3, 64, 64)` in `[-1, 1]`.
-- `proximity` — calibrated virtual range readout `(left, right)` in `[0, 1]`
+- `proximity` — calibrated virtual range readout `{"left","right"}` in `[0, 1]`
+  (the same dict shape as the hosted sim API and the exam policy slot)
   from the geometry the world model is conditioned on (0 = clear,
   1 = contact range ≈ 30 cm at robot scale).
 - `collision` — 1 when a forward move was blocked by a wall this step.
@@ -59,7 +60,7 @@ env = LocalDreamEnv(seed=7)
 obs, _ = env.reset()
 while True:
     # encode: bounded scalars -> input spike rates
-    rates = obs["proximity"]            # [left, right] in 0..1
+    rates = obs["proximity"]            # {"left","right"} each in 0..1
     pain  = obs["collision"]            # punishment spike
     # your spiking network here: integrate for one tick, decode motor pops
     action = my_snn.tick(rates, pain)   # -> 0..4 (noop/fwd/left/right/attack)

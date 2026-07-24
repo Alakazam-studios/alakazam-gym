@@ -20,7 +20,7 @@ for t in range(steps):
     if obs["sensor_valid"]:
         collisions += obs["collision"]
         if t % 10 == 0:
-            print(f"t={t:3d} prox=({obs['proximity'][0]:.2f},{obs['proximity'][1]:.2f}) "
+            print(f"t={t:3d} prox=({obs['proximity']['left']:.2f},{obs['proximity']['right']:.2f}) "
                   f"frame[{obs['frame'].min():+.2f},{obs['frame'].max():+.2f}] "
                   f"collisions={collisions}")
 env.close()

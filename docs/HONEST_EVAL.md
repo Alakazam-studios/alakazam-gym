@@ -6,11 +6,13 @@ loophole we left open.
 
 ## 1. Post-reset blindness
 
-Never sense or score the first ~2 steps after any world reset. World models
-settle after a reset; early frames carry artifacts. `LocalDreamEnv` enforces
-this (`sensor_valid=0`, zeroed proximity, suppressed collision) — your
-training loop must respect the flag, and the certification exam applies the
-same rule on its side.
+Never sense or score the first ~2 steps after any WORLD-MODEL reset. World
+models settle after a reset; early frames carry artifacts. `LocalDreamEnv`
+enforces this (`sensor_valid=0`, zeroed proximity, suppressed collision) —
+your training loop must respect the flag. The physics exam is different by
+design: exact physics has no settle window, so the exam senses from tick 0
+and `sensor_valid` is always 1 there — never make a policy DEPEND on
+post-reset blindness.
 
 ## 2. Dream scores are not capability claims
 

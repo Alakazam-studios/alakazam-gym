@@ -38,10 +38,10 @@ snn = TinyLIF()
 survived = 0
 for t in range(80):
     if obs["sensor_valid"]:
-        a = snn.tick(obs["proximity"], obs["collision"])
+        a = snn.tick((obs["proximity"]["left"], obs["proximity"]["right"]), obs["collision"])
     else:
         a = 0  # blind steps: do nothing, never sense
     obs, _, _, _, info = env.step(a)
     survived = t
-print(f"ran {survived + 1} steps; final prox {obs['proximity'].round(2)}")
+print(f"ran {survived + 1} steps; final prox L={obs['proximity']['left']:.2f} R={obs['proximity']['right']:.2f}")
 env.close()
