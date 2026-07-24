@@ -16,11 +16,11 @@ post-reset blindness.
 
 ## 2. Dream scores are not capability claims
 
-A policy that scores well inside the dream has learned the dream — including,
+A policy that scores well inside the dream has learned the dream, including,
 possibly, its exploits (wall-grinding, floor-staring, pivot-in-place). The
-**frozen Webots oracle** is the sole scoreboard: fixed worlds, fixed
-contract, anti-exploit control arms (a cruiser policy that MUST fail — if it
-doesn't, the exam run is invalid, not a pass).
+frozen Webots oracle is the sole scoreboard: fixed worlds, fixed contract,
+anti-exploit control arms (a cruiser policy that MUST fail; if it doesn't,
+the exam run is invalid, not a pass).
 
 Report gym/dream numbers as training telemetry. Report capability only as an
 exam verdict, and quote the verdict honestly — including which bars failed.

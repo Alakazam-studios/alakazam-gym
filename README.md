@@ -1,22 +1,25 @@
 # alakazam-gym
 
-Train policies inside **Alakazam world models** — Gymnasium-compatible.
+Gymnasium-compatible environments for training policies inside Alakazam
+world models.
 
 Three surfaces, one package:
 
 | Class | What it is | Cost |
 |---|---|---|
-| `LocalDreamEnv` | The public [DOOM Dungeon HG](https://huggingface.co/alakazamworld/doom-dungeon-hg) world model, running **locally** via onnxruntime | free |
+| `LocalDreamEnv` | The public [DOOM Dungeon HG](https://huggingface.co/alakazamworld/doom-dungeon-hg) world model, running locally via onnxruntime | free |
 | `RemoteSimEnv` | The hosted simulation gym (`/v1/sim/sessions`, SNN observation contract) | metered (GPU stream per session) |
-| `ExamClient` | Certification in the **frozen Webots oracle** via the Forge API | scheduled |
+| `ExamClient` | Certification in the frozen Webots oracle via the Train API | scheduled |
 
 ## Install
 
 ```bash
+pip install git+https://github.com/Alakazam-studios/alakazam-gym
+# or, from a clone:
 pip install -e .
 ```
 
-First `LocalDreamEnv()` call downloads the public weights (~280 MB) into
+The first `LocalDreamEnv()` call downloads the public weights (~280 MB) into
 `~/.cache/alakazam-gym/` and sha256-verifies them against the published pins.
 Already have them? `export ALAKAZAM_GYM_WEIGHTS_DIR=/path/to/weights`.
 
@@ -45,11 +48,12 @@ the same graph runs under onnxruntime-web WebGPU in the browser clients).
   from the geometry the world model is conditioned on (0 = clear,
   1 = contact range ≈ 30 cm at robot scale).
 - `collision` — 1 when a forward move was blocked by a wall this step.
-- `sensor_valid` — **0 during the first steps after reset. Never sense or
-  score steps with `sensor_valid == 0`** (post-reset blindness; the
-  certification exam applies the same rule). See `docs/HONEST_EVAL.md`.
+- `sensor_valid` — 0 during the first steps after reset. Never sense or score
+  steps with `sensor_valid == 0` (post-reset blindness). The physics exam has
+  no such window, so never make a policy depend on blindness. See
+  `docs/HONEST_EVAL.md`.
 
-Reward is always `0.0` — shaping is yours.
+Reward is always `0.0`; shaping is yours.
 
 ## SNN sketch
 
@@ -68,29 +72,29 @@ while True:
 ```
 
 Training against the hosted worlds instead (e-puck/robot, wheels commands,
-camera): `RemoteSimEnv(base_url, key, world="epuck")` — same loop, metered
-sessions, **always `env.close()`**.
+camera): `RemoteSimEnv(base_url, key, world="epuck")`. Same loop, metered
+sessions, and always `env.close()`.
 
-## Certify — the exam is the scoreboard
+## Certify: the exam is the scoreboard
 
-Dream/gym numbers are training telemetry, never capability claims. When your
-controller is worth a claim, certify it in the frozen Webots oracle:
+Dream and gym numbers are training telemetry, never capability claims. When
+your controller is worth a claim, certify it in the frozen Webots oracle:
 
 ```python
 from alakazam_gym import ExamClient
-c = ExamClient("https://api.alakazam.gg/train", key=TRAIN_KEY)  
+c = ExamClient("https://api.alakazam.gg/train", key=TRAIN_KEY)
 job = c.submit_exam_only("my-cert-001", genome6=[...])    # or genome9=[...]
 result = c.wait(job["job_id"])
-print(result["oracle"]["verdict"])                        # 4-bar verdict, honest
+print(result["oracle"]["verdict"])                        # 4-bar verdict
 ```
 
-## Certify YOUR OWN policy
+## Certify your own policy
 
 You are not limited to the 9-float controller family. Package any policy that
 implements the `reset(seed)` + `act(obs)` contract and submit it as a sandboxed
-python module. The `obs` your policy sees in the exam is the SAME dict the local
+python module. The `obs` your policy sees in the exam is the same dict the local
 gym emits (`proximity`, `collision`, `sensor_valid`), and the action is the same
-wheel-fraction vocabulary — so a policy you trained in `LocalDreamEnv` certifies
+wheel-fraction vocabulary, so a policy you trained in `LocalDreamEnv` certifies
 unchanged.
 
 ```python
@@ -112,21 +116,21 @@ job = c.submit_policy("my-cert-001", bundle)
 print(c.wait(job["job_id"])["oracle"]["verdict"])
 ```
 
-Sandbox: the module runs inside the exam container with **no network egress**
+Sandbox: the module runs inside the exam container with no network egress
 and resource/time limits (trusted-partner posture, key-gated). The container
-ships numpy + onnxruntime; a policy needing torch/norse will not import — export
-your weights and run a numpy forward pass. There is deliberately no ONNX detour:
-ship a python module, not a converted graph. The policy replaces ONLY the
-champion arm; the world, spawns, episode count, tick, proximity remap, scoring
-and the anti-exploit control arms stay frozen.
+ships numpy and onnxruntime; a policy needing torch or norse will not import,
+so export your weights and run a numpy forward pass. There is deliberately no
+ONNX detour: ship a python module, not a converted graph. The policy replaces
+only the champion arm; the world, spawns, episode count, tick, proximity
+remap, scoring, and the anti-exploit control arms stay frozen.
 
-Full API reference: the **Forge** tab of the Alakazam docs.
+Full API reference and guides: https://docs.alakazam.gg/train
 
 ## Licensing
 
-- Code in this repo: **MIT** (`LICENSE`).
-- Model weights (`alakazamworld/doom-dungeon-hg`): **CC BY-NC-SA** — the
-  downloader does not change that. Commercial use of the weights needs a
+- Code in this repo: MIT (`LICENSE`).
+- Model weights (`alakazamworld/doom-dungeon-hg`): CC BY-NC-SA. The
+  downloader does not change that; commercial use of the weights needs a
   separate arrangement.
 
 ## Provenance
